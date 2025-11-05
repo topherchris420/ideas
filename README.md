@@ -1,17 +1,17 @@
-# 🧬 hello_os: Resonant Intelligence Playground
+#  hello_os: Resonant Intelligence Playground
 
 **An open-source framework for exploring the intersection of sound, field dynamics, AI, and human-machine resonance.**
 
 ---
 
-## 🚀 Overview
+## Overview
 
 hello_os is a modular research environment that unites **electromagnetic resonance modeling**, **neurofeedback simulation**, **AI-driven rhythm analysis**, and **multi-dimensional learning environments** into one open-source ecosystem.  
 It’s designed to experiment with how energy, information, and consciousness might self-organize through frequency, rhythm, and adaptive feedback.
 
 ---
 
-## 🧩 Core Modules
+## Core Modules
 
 | Module                                  | Purpose                                                    | Highlights                                                            |
 | --------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
