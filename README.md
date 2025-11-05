@@ -11,7 +11,7 @@ Created by **Christopher Woodyard** | R.A.I.N. Lab | Vers3Dynamics 🇺🇸
 
 ## ⚡ Overview
 
-**hello_os** (formerly `vers3dynamics`) is an experimental physics playground that combines:
+**hello_os** is an experimental physics playground that combines:
 - **Tesla coil resonant coupling simulations** with elliptic-integral precision
 - **Numba-accelerated** computational physics (T4 GPU optimized)
 - **Real-time visualizations** of electromagnetic field dynamics
