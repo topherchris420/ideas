@@ -1,37 +1,67 @@
-#  hello_os: Resonant Intelligence Playground
+# hello_os: Resonant Intelligence Playground 
 
-**An open-source framework for exploring the intersection of sound, field dynamics, AI, and human-machine resonance.**
+> **A living research operating system exploring electromagnetic resonance, field dynamics, and physics**
 
----
+Created by **Christopher Woodyard** | R.A.I.N. Lab | Vers3Dynamics 🇺🇸
 
-## Overview
-
-hello_os is a modular research environment that unites **electromagnetic resonance modeling**, **neurofeedback simulation**, **AI-driven rhythm analysis**, and **multi-dimensional learning environments** into one open-source ecosystem.  
-It’s designed to experiment with how energy, information, and consciousness might self-organize through frequency, rhythm, and adaptive feedback.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1rdR0r-m8CSoYTurllo6QXTw0MOueSmvZ)
 
 ---
 
-## Core Modules
+## ⚡ Overview
 
-| Module                                  | Purpose                                                    | Highlights                                                            |
-| --------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
-| **Tesla Resonant Coupling Simulator**   | Models mutual inductance & energy efficiency between coils | Elliptic-integral solver, Numba acceleration, real-time visualization |
-| **Resonant Consciousness Engine (RCE)** | Closed-loop neurofeedback simulator                        | Synthetic EEG generation, coherence metrics, adaptive field control   |
-| **4D DQN Arena**                        | Reinforcement-learning playground in 4D space              | Multi-agent training, tesseract projection, audio-reactive visuals    |
-| **Field Propulsion Lab**                | Relativistic field & metric visualization                  | Differential geometry approximations, AI-assisted optimization        |
+**hello_os** (formerly `vers3dynamics`) is an experimental physics playground that combines:
+- **Tesla coil resonant coupling simulations** with elliptic-integral precision
+- **Numba-accelerated** computational physics (T4 GPU optimized)
+- **Real-time visualizations** of electromagnetic field dynamics
+- **Interactive parameter exploration** for wireless power transfer research
+
+Built for researchers or anyone fascinated by resonance.
 
 ---
 
-## ⚙️ Installation
+## 🔬 Current Experiments
+
+### Tesla Resonant Coupling Simulator
+The core module simulates magnetically-coupled resonant systems (Tesla coils) with:
+
+**Physics Features:**
+- **Mutual inductance calculation** using elliptic integrals (K and E)
+- **Transient time-domain simulation** via coupled differential equations
+- **Phasor steady-state analysis** for frequency response
+- **Coupling coefficient (k)** computation from geometry
+- **Phase-space dynamics** and energy transfer visualization
+
+**Performance:**
+- Numba JIT compilation for 100x+ speedup on efficiency maps
+- Parallel computation of parameter sweeps
+- GPU-accelerated contour generation
+
+**Visualizations:**
+- Time-domain current waveforms (Tx/Rx)
+- Phase-space trajectories (steady-state)
+- Energy dynamics (magnetic + capacitive)
+- Frequency response curves (current & efficiency)
+- **2D efficiency heatmaps** (distance vs frequency)
+- **Living field animations** (breathing resonance patterns)
+
+---
+
+## 🚀 Quick Start
+
+### Run on Google Colab (Easiest)
+Click the Colab badge above to open the notebook and run immediately!
+
+### Local Installation
 
 ```bash
-# clone the repo
-git clone https://github.com/topherchris420/ideas/vers3dynamics.git
-cd hello_os
+# Clone the repository
+git clone https://github.com/topherchris420/ideas.git
+cd ideas
 
-# create environment
-python3 -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+# Install dependencies
+pip install numba matplotlib numpy scipy pandas ipywidgets tqdm
 
-# install dependencies
-pip install -r requirements.txt
+# Run the simulation (Jupyter required)
+jupyter notebook vers3dynamics
