@@ -14,10 +14,7 @@ Created by **Christopher Woodyard** | R.A.I.N. Lab | Vers3Dynamics 🇺🇸
 > **Building a foundation for resonant intelligence.**
 
 **hello_os** is an open-source experiment exploring how frequency, feedback, and computation can model living systems.  
-The goal isn’t profit or secrecy..it’s contribution. Every line of code is meant to serve as a foundation others can build on, remix, and evolve.
 
-I believe in science that listens: systems that adapt to rhythm, signal, and meaning across both human and machine experience.  
-By sharing my work freely, I invite researchers, artists, and engineers to explore the frontier where sound meets intelligence — and to extend it safely and responsibly.
 
 ### 🌱 Core Principles
 1. **Open Inquiry:** All findings, code, and data remain open for educational and research use.  
