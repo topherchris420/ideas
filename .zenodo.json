@@ -1,0 +1,13 @@
+{
+  "title": "hello_os: Resonant Intelligence Playground",
+  "description": "A living research operating system by R.A.I.N. Lab exploring resonant intelligence and physics simulations.",
+  "creators": [
+    {
+      "name": "Woodyard, Christopher",
+      "affiliation": "R.A.I.N. Lab | Vers3Dynamics"
+    }
+  ],
+  "access_right": "open",
+  "license": "MIT",
+  "upload_type": "software"
+}
