@@ -62,24 +62,43 @@ materials = {
 
 # -------------------------- Safe Gravitomagnetic Field --------------------------
 def gravitomagnetic_field(r_vec, J_vec, v_rotor=0):
-    r = np.linalg.norm(r_vec)
-    if r < 1e-12:  # Avoid singularity at origin
-        return np.zeros(3)
+    """
+    Optimized: Vectorized calculation of gravitomagnetic field.
+    Supports both single vector (3,) and array of vectors (N, 3).
+    """
+    r_vec = np.atleast_2d(r_vec)
+    r = np.linalg.norm(r_vec, axis=1)
 
-    r_hat = r_vec / r
+    # Avoid singularity at origin
+    mask = r >= 1e-12
+    r_safe = np.where(mask, r, 1.0)
+
     J = np.linalg.norm(J_vec)
+    if J == 0:
+        return np.zeros(3) if r_vec.shape[0] == 1 else np.zeros((r_vec.shape[0], 3))
 
-    if J == 0:  # Critical fix: zero angular momentum
-        return np.zeros(3)
+    r_hat = r_vec / r_safe[:, np.newaxis]
 
-    J_hat = J_vec / J
+    # J_vec dot r_hat (J_vec is (3,), r_hat is (N, 3))
+    J_dot_rhat = np.sum(J_vec * r_hat, axis=1)
 
-    # Standard GR dipole field
-    B_g = (G / (c**2 * r**3)) * (3 * np.dot(J_vec, r_hat) * r_hat - J_vec)
+    # 3 * (J . r_hat) * r_hat - J_vec
+    term1 = 3 * J_dot_rhat[:, np.newaxis] * r_hat
+    term2 = term1 - J_vec
+
+    # factor = G / (c^2 * r^3)
+    factor = G / (c**2 * r_safe**3)
+
+    B_g = factor[:, np.newaxis] * term2
 
     # Very mild 1.5 PN scaling (illustrative only)
     pn_factor = 1 + 3 * (v_rotor**2 / c**2)
-    return pn_factor * B_g
+    result = pn_factor * B_g
+
+    # Apply mask
+    result[~mask] = 0.0
+
+    return result.squeeze()
 
 # -------------------------- Stable Quantum Noise --------------------------
 def quantum_noise(t, a_rms=1e-12):
@@ -220,9 +239,10 @@ class GravMagExplorer:
         for ang in angles:
             pos = self.array_radius * np.array([np.cos(ang), np.sin(ang), 0])
             rotor_pos_list.append(pos)
-            for i, pt in enumerate(pts):
-                r_vec = pt - pos
-                B_field[i] += gravitomagnetic_field(r_vec, J_vec_single, p['v_tip'])
+            # ⚡ Bolt Optimization: Vectorized field calculation (eliminates inner loop over ~8000 points)
+            # This reduces complexity from O(N_rotors * N_points) to O(N_rotors) in Python loop overhead
+            r_vecs = pts - pos
+            B_field += gravitomagnetic_field(r_vecs, J_vec_single, p['v_tip'])
 
         # Random subsampling for smooth animation
         n_arrows = min(350, len(pts)//2)
@@ -1766,7 +1786,7 @@ if __name__ == "__main__":
         print(f"{a:18} → {b:20} {c}")
     print(f"\nUnique causal relationships discovered: {swarm.graph.number_of_edges()}")
 
-!python /content/recipes/nuclear_expert_3b.py
+# !python /content/recipes/nuclear_expert_3b.py
 
 import tinker
 service_client = tinker.ServiceClient()
@@ -1877,7 +1897,7 @@ with open('tinker_api_key', 'w') as f:
 
 print("✓ Tinker API key written to file 'tinker_api_key'")
 
-!pip install -q tinker "tinker-cookbook"
+# !pip install -q tinker "tinker-cookbook"
 
 """ Vers3Dynamics IONS_X-Inspired Deep Emergence GPU Lab
 Based on the ATOM framework: Analyses, Targets, Operators, Moderators
@@ -3191,7 +3211,7 @@ from google.colab import userdata
 import os
 os.environ['TINKER_API_KEY'] = userdata.get('TINKER_API_KEY')
 
-!pip install tinker tiktoken -q
+# !pip install tinker tiktoken -q
 
 from tinker import ServiceClient, types
 import tiktoken
@@ -3346,7 +3366,7 @@ print()
 print()
 print("=" * 90)
 
-!python /content/recipes/rom_ultimate_11b.py
+# !python /content/recipes/rom_ultimate_11b.py
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5347,8 +5367,8 @@ anim.save(gif_path, writer='pillow', fps=20)
 print("✅ GIF saved! Playing now...")
 Image(filename=gif_path)
 
-!pip install playwright -q
-!playwright install chromium
+# !pip install playwright -q
+# !playwright install chromium
 
 # Create a proper script file
 import os
@@ -5370,7 +5390,7 @@ with open('/mnt/okcomputer/screenshot.py', 'w') as f:
     f.write(script)
 
 # Run the script
-!python /mnt/okcomputer/screenshot.py
+# !python /mnt/okcomputer/screenshot.py
 
 # Display the PNG
 from IPython.display import Image
@@ -5379,7 +5399,7 @@ Image(filename='/mnt/okcomputer/output/preview.png', width=900)
 # ⚡ Vers3Dynamics — Living Resonant Field
 
 
-!pip install numba matplotlib numpy scipy pandas ipywidgets tqdm --quiet
+# !pip install numba matplotlib numpy scipy pandas ipywidgets tqdm --quiet
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7307,7 +7327,7 @@ os.environ['TINKER_API_KEY'] = api_key
 
 print("🇺🇸 Tinker API key loaded from Colab Secrets – God Bless America")
 
-!pip install -q tinker "tinker-cookbook[all]"
+# !pip install -q tinker "tinker-cookbook[all]"
 
 from google.colab import userdata
 import os
@@ -7407,7 +7427,7 @@ with open("/content/tinker-cookbook/rain_commander_dataset_5000.jsonl", "w") as 
 print("✅ Diverse R.A.I.N. Commander dataset created!")
 print(f"Sample: {examples[0]}")
 
-!mkdir -p /content/recipes
+# !mkdir -p /content/recipes
 
 with open('/content/recipes/rain_commander.py', 'w') as f:
     f.write('''# R.A.I.N. COMMANDER
@@ -7464,14 +7484,14 @@ print("\\\\n✅ COMPLETE! 🇺🇸🦅")
 
 print("✅ Training script ready!")
 
-!python /content/recipes/rain_commander.py
+# !python /content/recipes/rain_commander.py
 
 from google.colab import userdata
 import os
 os.environ['TINKER_API_KEY'] = userdata.get('TINKER_API_KEY')
 
 # Critical: install tinker + cookbook correctly
-!pip install -q tinker tinker-cookbook
+# !pip install -q tinker tinker-cookbook
 
 # Verify install
 import tinker
@@ -7482,7 +7502,7 @@ print("🇺🇸 God Bless America – we are locked and loaded")
 # 🌀 FIELD PROPULSION SIMULATOR
 # Christopher Woodyard | Vers3Dynamics
 # ============================================================
-!pip install groq
+# !pip install groq
 import groq
 import torch
 import numpy as np
@@ -8921,7 +8941,7 @@ OTOC-GUIDED QUANTUM CIRCUIT SURGERY FOR ERROR MITIGATION
 """
 print("🔬 Initializing OTOC-Guided Circuit Surgery Platform...")
 print("⚡ Novel Research Implementation - Publication Grade")
-!pip install -q qiskit qiskit-aer torch matplotlib plotly numpy scipy networkx tqdm seaborn scikit-learn
+# !pip install -q qiskit qiskit-aer torch matplotlib plotly numpy scipy networkx tqdm seaborn scikit-learn
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13090,7 +13110,7 @@ if __name__ == "__main__":
 # 🔮 Vers3Dynamics: Quantum-Coherent Heat Engine — Carnot’s Rebel
 
 
-!pip install qutip ipywidgets matplotlib numpy --quiet
+# !pip install qutip ipywidgets matplotlib numpy --quiet
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15788,7 +15808,7 @@ for video_path, name in [
 
 # @title Here–Now: A Single Point Expressing All “Parallel Realities"
 
-!pip install torch plotly
+# !pip install torch plotly
 
 import numpy as np
 import plotly.graph_objects as go
@@ -19627,7 +19647,7 @@ Author: Christopher Woodyard (Vers3Dynamics)
 License: MIT
 
 """
-!pip install numpy matplotlib pykitti qutip
+# !pip install numpy matplotlib pykitti qutip
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
@@ -23583,7 +23603,7 @@ reactor, history = run_simulation(500, 'startup', use_gpu=True)  # 500 hours
 """
 QUANTUM-RESONANT BIOFIELD COMPILER (QRBC)
 """
-!pip install torch torchvision torchaudio pywt plotly kaleido -q
+# !pip install torch torchvision torchaudio pywt plotly kaleido -q
 
 
 import numpy as np
@@ -24722,7 +24742,7 @@ Author: Christopher Woodyard (Vers3Dynamics)
 License: MIT
 
 """
-!pip install numpy matplotlib qutip
+# !pip install numpy matplotlib qutip
 from dataclasses import dataclass, field
 from typing import Optional, List
 import numpy as np
@@ -25519,7 +25539,7 @@ Author: Christopher Woodyard (Vers3Dynamics)
 License: MIT
 
 """
-!pip install qutip
+# !pip install qutip
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, Optional, List
 import numpy as np
@@ -28664,7 +28684,7 @@ if __name__ == "__main__":
     if cfg.show_scaling:
         scaling_figures(cfg)
 
-!pip install qiskit qiskit-aer
+# !pip install qiskit qiskit-aer
 from dataclasses import dataclass
 from typing import Tuple, Dict, Any
 import numpy as np
@@ -28911,8 +28931,8 @@ if __name__ == "__main__":
         print("Error running QPNS demo:", e)
 
 # The Oracle Spore: Simplified Bio-Synthetic Demo
-!pip uninstall -y torch torchvision torchaudio
-!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# !pip uninstall -y torch torchvision torchaudio
+# !pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 import math
 import random
 import time
@@ -29849,7 +29869,7 @@ if __name__ == "__main__":
         print("All visualizations and analyses have been generated.")
         print("\nThe bio-synthetic consciousness has awakened! 🌟")
 
-!pip install -q networkx==3.2.1 pillow==10.4.0
+# !pip install -q networkx==3.2.1 pillow==10.4.0
 from IPython.display import HTML, clear_output
 import sys, math, random, time, io
 import numpy as np
@@ -31373,7 +31393,7 @@ if __name__ == "__main__":
 Vers3Dynamics Time Crystal
 
 """
-!pip install qiskit qiskit-aer --quiet
+# !pip install qiskit qiskit-aer --quiet
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -31802,7 +31822,7 @@ if __name__ == "__main__":
 # ============================================================================
 
 
-!pip install cupy-cuda11x tqdm h5py
+# !pip install cupy-cuda11x tqdm h5py
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33199,10 +33219,10 @@ if 'trainer' in globals():
     create_visualizations(results)
     create_realtime_demo()
 
-!pip install torch transformers scipy matplotlib numpy
-!pip install accelerate bitsandbytes
-!pip install datasets
-!nvidia-smi
+# !pip install torch transformers scipy matplotlib numpy
+# !pip install accelerate bitsandbytes
+# !pip install datasets
+# !nvidia-smi
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -40982,7 +41002,7 @@ if __name__ == "__main__":
         teleporter.cleanup()
         print("Quantum teleporter offline.")
 
-!pip install villager
+# !pip install villager
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42661,7 +42681,7 @@ print("\n🎉 Vers3Dynamics Performance Analysis Complete!")
 print(f"System Configuration: GPU={USE_GPU}, Dask={HAS_DASK}")
 print("Ready for production deployment!")
 
-!pip install qiskit qiskit-aer numpy matplotlib seaborn scipy pandas --upgrade --quiet
+# !pip install qiskit qiskit-aer numpy matplotlib seaborn scipy pandas --upgrade --quiet
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43600,8 +43620,8 @@ def run_advanced_quantum_biology_experiment():
 if __name__ == "__main__":
     experiment_results, research_platform = run_advanced_quantum_biology_experiment()
 
-!pip -q install crewai duckduckgo-search crewai[tools] litellm
-!pip install -U duckduckgo-search ddgs
+# !pip -q install crewai duckduckgo-search crewai[tools] litellm
+# !pip install -U duckduckgo-search ddgs
 
 import os
 from crewai import Crew, Agent, Task
@@ -44642,7 +44662,7 @@ plot_results(results, show_topology=True)
 # Real-time cymatic visualization of cyber threats, network anomalies, and attack patterns
 
 # Install required libraries
-!pip install matplotlib numpy pandas librosa scipy scikit-learn networkx seaborn plotly
+# !pip install matplotlib numpy pandas librosa scipy scikit-learn networkx seaborn plotly
 
 import numpy as np
 import pandas as pd
@@ -45229,8 +45249,8 @@ def main():
 if __name__ == "__main__":
     result_viz, result_report = main()
 
-!apt-get install -y portaudio19-dev
-!pip install sounddevice
+# !apt-get install -y portaudio19-dev
+# !pip install sounddevice
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import welch, butter, filtfilt
@@ -45841,8 +45861,8 @@ def animate_sweep(freq_start=100.0, freq_end=1000.0, duration=10.0, grid=300, fp
 anim = animate_sweep(freq_start=100, freq_end=1000, duration=10, grid=300, fps=30)
 HTML(anim.to_jshtml())  # Inline interactive animation
 
-!pip -q install crewai duckduckgo-search crewai[tools] litellm
-!pip install -U duckduckgo-search ddgs
+# !pip -q install crewai duckduckgo-search crewai[tools] litellm
+# !pip install -U duckduckgo-search ddgs
 
 import os
 from crewai import Crew, Agent, Task
@@ -45941,7 +45961,7 @@ if crew is not None:
     print("\nFinal Result:")
     print(result)
 
-!pip install qiskit qiskit-aer matplotlib seaborn numpy torch
+# !pip install qiskit qiskit-aer matplotlib seaborn numpy torch
 
 # Quantum Biology Research from R.A.I.N. Lab
 # ==========================================
@@ -47464,13 +47484,13 @@ warnings.filterwarnings('ignore')
 
 # Install packages with conflict resolution
 print("📦 Installing required packages...")
-!pip install -q "pydantic<2.0"
-!pip install -q --upgrade pip
-!pip install -q --no-deps crewai==0.70.1
-!pip install -q --no-deps crewai-tools==0.12.1
-!pip install -q --no-deps litellm==1.49.3
-!pip install -q duckduckgo-search==6.3.4
-!pip install -q --upgrade langchain-community
+# !pip install -q "pydantic<2.0"
+# !pip install -q --upgrade pip
+# !pip install -q --no-deps crewai==0.70.1
+# !pip install -q --no-deps crewai-tools==0.12.1
+# !pip install -q --no-deps litellm==1.49.3
+# !pip install -q duckduckgo-search==6.3.4
+# !pip install -q --upgrade langchain-community
 
 # Handle potential import issues
 import sys
@@ -49052,13 +49072,13 @@ warnings.filterwarnings('ignore')
 
 # Install packages with conflict resolution
 print("📦 Installing required packages...")
-!pip install -q "pydantic<2.0"
-!pip install -q --upgrade pip
-!pip install -q --no-deps crewai==0.70.1
-!pip install -q --no-deps crewai-tools==0.12.1
-!pip install -q --no-deps litellm==1.49.3
-!pip install -q duckduckgo-search==6.3.4
-!pip install -q --upgrade langchain-community
+# !pip install -q "pydantic<2.0"
+# !pip install -q --upgrade pip
+# !pip install -q --no-deps crewai==0.70.1
+# !pip install -q --no-deps crewai-tools==0.12.1
+# !pip install -q --no-deps litellm==1.49.3
+# !pip install -q duckduckgo-search==6.3.4
+# !pip install -q --upgrade langchain-community
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -50490,14 +50510,14 @@ plt.ion()  # Turn on interactive mode
 
 # Vers3Dynamics AI Research Assistant - Llama-3.1-8B Inference
 
-!wget --progress=bar:force {model_url} -O {model_path}
+# !wget --progress=bar:force {model_url} -O {model_path}
 import os
 import sys
 from pathlib import Path
 
 # Step 1: Install the latest llama-cpp-python
 print("Installing llama-cpp-python...")
-!pip install llama-cpp-python==0.3.16
+# !pip install llama-cpp-python==0.3.16
 
 # Step 2: Download the model with error handling
 model_url = "https://huggingface.co/unsloth/Llama-3.1-8B-Instruct-GGUF/resolve/main/Llama-3.1-8B-Instruct-Q4_K_M.gguf"
@@ -50642,8 +50662,8 @@ try:
 except Exception as e:
     print(f"Error generating response: {e}")
 
-!pip -q install crewai duckduckgo-search crewai[tools] litellm
-!pip install -U duckduckgo-search ddgs
+# !pip -q install crewai duckduckgo-search crewai[tools] litellm
+# !pip install -U duckduckgo-search ddgs
 
 import os
 from crewai import Crew, Agent, Task
@@ -52349,7 +52369,7 @@ grover_circuit = grover_algorithm(num_iterations, num_qubits)
 
 grover_circuit.draw()
 
-!pip install qiskit
+# !pip install qiskit
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from numpy import pi
 
@@ -52387,7 +52407,7 @@ nonlocal_circuit = nonlocality_experiment(qc, q0, q1, num_measurements)
 
 nonlocal_circuit.draw()
 
-!pip install qiskit
+# !pip install qiskit
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 user_input = input("Enter '0' to prepare |0> or '-' to prepare |->")
@@ -52411,7 +52431,7 @@ qc.measure(sys, cr)
 
 qc.draw()
 
-!pip install qiskit
+# !pip install qiskit
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.circuit.library import CSwapGate
 #Define custom gates
@@ -52488,7 +52508,7 @@ qc.cz(0, 2)
 
 qc.draw()
 
-!pip install qiskit
+# !pip install qiskit
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 # Define the quantum circuit
@@ -53543,8 +53563,8 @@ show_usage_examples()
 # Run the synthetic demonstration (no files needed!)
 results = quick_demo(model="iso", seed=42)
 
-!pip install qiskit
-!pip install pylatexenc
+# !pip install qiskit
+# !pip install pylatexenc
 from qiskit import QuantumCircuit
 from qiskit.visualization import plot_histogram
 from qiskit import transpile # import transpile
@@ -53615,7 +53635,7 @@ counts = measure_and_visualize(qc)
 # Analyze the results
 analyze_results(counts)
 
-!pip install qiskit
+# !pip install qiskit
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from numpy import pi
 
@@ -53651,8 +53671,8 @@ nonlocal_circuit = nonlocality_experiment(qc, q[0], q[1], c[0], c[1], num_measur
 
 print(nonlocal_circuit.draw())
 
-!pip install qiskit
-!pip install qiskit-aer
+# !pip install qiskit
+# !pip install qiskit-aer
 from qiskit_aer import Aer # import Aer from qiskit_aer
 import numpy as np
 from qiskit import QuantumCircuit # import QuantumCircuit only
