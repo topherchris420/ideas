@@ -2306,7 +2306,10 @@ class Agent:
             self.memory.pop(0)
 
     def discover_patterns(self):
-        """Pattern discovery with multiple correlation types + Tinker insights"""
+        """
+        Pattern discovery with multiple correlation types + Tinker insights
+        ⚡ Bolt Optimization: Pre-normalized dot products for O(N) correlation speedup
+        """
         if len(self.memory) < CFG.CORR_WINDOW:
             return []
 
@@ -2316,18 +2319,43 @@ class Agent:
         arr_now = np.array([o.values for o in window])
         arr_env = np.array([o.env_factor for o in window])
 
+        # Pre-normalize arrays for faster correlation
+        def normalize(arr):
+            if arr.ndim == 1:
+                arr = arr[:, np.newaxis]
+            means = np.mean(arr, axis=0)
+            centered = arr - means
+            ssq = np.sum(centered**2, axis=0)
+            mask = ssq >= 1e-14
+            inv_norms = np.zeros_like(ssq)
+            inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
+            normalized = centered * inv_norms
+            if arr.shape[1] == 1:
+                return normalized.ravel(), mask[0]
+            return normalized, mask
+
+        norm_now, mask_now = normalize(arr_now)
+        norm_env, mask_env = normalize(arr_env)
+
         lag_arrays = {}
+        norm_lags = {}
+        mask_lags = {}
+
         for lag_idx, lag_val in enumerate(CFG.LAG_FRAMES):
             if lag_val in self.focus_lags:
-                lag_arrays[lag_val] = np.array([o.lags[lag_idx] for o in window])
+                lag_arr = np.array([o.lags[lag_idx] for o in window])
+                lag_arrays[lag_val] = lag_arr
+                norm_lags[lag_val], mask_lags[lag_val] = normalize(lag_arr)
 
         discoveries = []
         names = [f"ch{c}" for c in range(C)]
 
         # Cross-channel correlations
         for i in range(C):
+            if not mask_now[i]: continue
             for j in range(i + 1, C):
-                r = compute_correlation(arr_now[:, i], arr_now[:, j])
+                if not mask_now[j]: continue
+                r = float(np.dot(norm_now[:, i], norm_now[:, j]))
                 if abs(r) > self.corr_thresh:
                     edge = (names[i], names[j])
 
@@ -2347,29 +2375,35 @@ class Agent:
                     tinker_int.collect_data(disc)
 
         # Lagged correlations
-        for lag_val, lag_arr in lag_arrays.items():
-            for i in range(C):
-                # Autocorrelation
-                r = compute_correlation(arr_now[:, i], lag_arr[:, i])
-                if abs(r) > self.corr_thresh:
-                    edge = (names[i], f"{names[i]}@t-{lag_val}")
-                    pred_r = tinker_int.predict_insight(edge)
-                    boost = 0.1 * abs(pred_r - r) if pred_r else 0
+        for lag_val in lag_arrays.keys():
+            n_lag = norm_lags[lag_val]
+            m_lag = mask_lags[lag_val]
 
-                    disc = {
-                        'edge': edge,
-                        'correlation': r,
-                        'type': f'lag{lag_val}',
-                        'lag': lag_val,
-                        'confidence': abs(r) * (1.0 + 0.2 * (lag_val / max(CFG.LAG_FRAMES))) + boost
-                    }
-                    discoveries.append(disc)
-                    tinker_int.collect_data(disc)
+            for i in range(C):
+                if not mask_now[i]: continue
+
+                # Autocorrelation
+                if m_lag[i]:
+                    r = float(np.dot(norm_now[:, i], n_lag[:, i]))
+                    if abs(r) > self.corr_thresh:
+                        edge = (names[i], f"{names[i]}@t-{lag_val}")
+                        pred_r = tinker_int.predict_insight(edge)
+                        boost = 0.1 * abs(pred_r - r) if pred_r else 0
+
+                        disc = {
+                            'edge': edge,
+                            'correlation': r,
+                            'type': f'lag{lag_val}',
+                            'lag': lag_val,
+                            'confidence': abs(r) * (1.0 + 0.2 * (lag_val / max(CFG.LAG_FRAMES))) + boost
+                        }
+                        discoveries.append(disc)
+                        tinker_int.collect_data(disc)
 
                 # Cross-channel lagged
                 for j in range(C):
-                    if i != j:
-                        r = compute_correlation(arr_now[:, i], lag_arr[:, j])
+                    if i != j and m_lag[j]:
+                        r = float(np.dot(norm_now[:, i], n_lag[:, j]))
                         if abs(r) > self.corr_thresh:
                             edge = (names[i], f"{names[j]}@t-{lag_val}")
                             pred_r = tinker_int.predict_insight(edge)
@@ -2386,22 +2420,24 @@ class Agent:
                             tinker_int.collect_data(disc)
 
         # Environmental modulation correlations
-        for i in range(C):
-            r = compute_correlation(arr_now[:, i], arr_env)
-            if abs(r) > self.corr_thresh + 0.1:
-                edge = (names[i], 'ENV')
-                pred_r = tinker_int.predict_insight(edge)
-                boost = 0.1 * abs(pred_r - r) if pred_r else 0
+        if mask_env:
+            for i in range(C):
+                if not mask_now[i]: continue
+                r = float(np.dot(norm_now[:, i], norm_env))
+                if abs(r) > self.corr_thresh + 0.1:
+                    edge = (names[i], 'ENV')
+                    pred_r = tinker_int.predict_insight(edge)
+                    boost = 0.1 * abs(pred_r - r) if pred_r else 0
 
-                disc = {
-                    'edge': edge,
-                    'correlation': r,
-                    'type': 'environmental',
-                    'lag': 0,
-                    'confidence': abs(r) * 1.5 + boost
-                }
-                discoveries.append(disc)
-                tinker_int.collect_data(disc)
+                    disc = {
+                        'edge': edge,
+                        'correlation': r,
+                        'type': 'environmental',
+                        'lag': 0,
+                        'confidence': abs(r) * 1.5 + boost
+                    }
+                    discoveries.append(disc)
+                    tinker_int.collect_data(disc)
 
         return discoveries
 
