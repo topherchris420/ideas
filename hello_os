@@ -587,19 +587,51 @@ class Agent:
         arr_now = np.array([o.values for o in window])  # (W, C)
         arr_env = np.array([o.env_factor for o in window])  # (W,)
 
+        # Pre-normalize arrays for faster correlation
+        def normalize(arr):
+            # Returns (normalized_arr, valid_mask)
+            # arr shape: (W, ...) -> normalized shape same
+            if arr.ndim == 1:
+                arr = arr[:, np.newaxis]
+
+            means = np.mean(arr, axis=0)
+            centered = arr - means
+            ssq = np.sum(centered**2, axis=0)
+
+            mask = ssq >= 1e-14
+            inv_norms = np.zeros_like(ssq)
+            inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
+
+            normalized = centered * inv_norms
+
+            if arr.shape[1] == 1: # Flatten if original was 1D
+                return normalized.ravel(), mask[0]
+            return normalized, mask
+
+        norm_now, mask_now = normalize(arr_now)
+        norm_env, mask_env = normalize(arr_env)
+
         # Lagged arrays for relevant lags
         lag_arrays = {}
+        norm_lags = {}
+        mask_lags = {}
+
         for lag_idx, lag_val in enumerate(CFG.LAG_FRAMES):
             if lag_val in self.focus_lags:
-                lag_arrays[lag_val] = np.array([o.lags[lag_idx] for o in window])
+                lag_arr = np.array([o.lags[lag_idx] for o in window])
+                lag_arrays[lag_val] = lag_arr
+                norm_lags[lag_val], mask_lags[lag_val] = normalize(lag_arr)
 
         discoveries = []
         names = [f"ch{c}" for c in range(C)]
 
         # 1. Cross-channel correlations (coincident)
         for i in range(C):
+            if not mask_now[i]: continue
             for j in range(i + 1, C):
-                r = compute_correlation(arr_now[:, i], arr_now[:, j])
+                if not mask_now[j]: continue
+                # r = compute_correlation(arr_now[:, i], arr_now[:, j])
+                r = float(np.dot(norm_now[:, i], norm_now[:, j]))
                 if abs(r) > self.corr_thresh:
                     discoveries.append({
                         'edge': (names[i], names[j]),
@@ -610,23 +642,31 @@ class Agent:
                     })
 
         # 2. Lagged correlations (temporal causality)
-        for lag_val, lag_arr in lag_arrays.items():
+        for lag_val in lag_arrays.keys():
+            n_lag = norm_lags[lag_val]
+            m_lag = mask_lags[lag_val]
+
             for i in range(C):
+                if not mask_now[i]: continue
+
                 # Autocorrelation
-                r = compute_correlation(arr_now[:, i], lag_arr[:, i])
-                if abs(r) > self.corr_thresh:
-                    discoveries.append({
-                        'edge': (names[i], f"{names[i]}@t-{lag_val}"),
-                        'correlation': r,
-                        'type': f'lag{lag_val}',
-                        'lag': lag_val,
-                        'confidence': abs(r) * (1.0 + 0.2 * (lag_val / max(CFG.LAG_FRAMES)))
-                    })
+                if m_lag[i]:
+                    # r = compute_correlation(arr_now[:, i], lag_arr[:, i])
+                    r = float(np.dot(norm_now[:, i], n_lag[:, i]))
+                    if abs(r) > self.corr_thresh:
+                        discoveries.append({
+                            'edge': (names[i], f"{names[i]}@t-{lag_val}"),
+                            'correlation': r,
+                            'type': f'lag{lag_val}',
+                            'lag': lag_val,
+                            'confidence': abs(r) * (1.0 + 0.2 * (lag_val / max(CFG.LAG_FRAMES)))
+                        })
 
                 # Cross-channel lagged
                 for j in range(C):
-                    if i != j:
-                        r = compute_correlation(arr_now[:, i], lag_arr[:, j])
+                    if i != j and m_lag[j]:
+                        # r = compute_correlation(arr_now[:, i], lag_arr[:, j])
+                        r = float(np.dot(norm_now[:, i], n_lag[:, j]))
                         if abs(r) > self.corr_thresh:
                             discoveries.append({
                                 'edge': (names[i], f"{names[j]}@t-{lag_val}"),
@@ -637,16 +677,19 @@ class Agent:
                             })
 
         # 3. Environmental modulation correlations
-        for i in range(C):
-            r = compute_correlation(arr_now[:, i], arr_env)
-            if abs(r) > self.corr_thresh + 0.1:  # Higher threshold for env
-                discoveries.append({
-                    'edge': (names[i], 'ENV'),
-                    'correlation': r,
-                    'type': 'environmental',
-                    'lag': 0,
-                    'confidence': abs(r) * 1.5
-                })
+        if mask_env:
+            for i in range(C):
+                if not mask_now[i]: continue
+                # r = compute_correlation(arr_now[:, i], arr_env)
+                r = float(np.dot(norm_now[:, i], norm_env))
+                if abs(r) > self.corr_thresh + 0.1:  # Higher threshold for env
+                    discoveries.append({
+                        'edge': (names[i], 'ENV'),
+                        'correlation': r,
+                        'type': 'environmental',
+                        'lag': 0,
+                        'confidence': abs(r) * 1.5
+                    })
 
         return discoveries
 
