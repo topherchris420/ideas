@@ -471,6 +471,21 @@ def compute_correlation(a, b):
         return 0.0
     return float(np.dot(am, bm) / np.sqrt(s_am * s_bm))
 
+def normalize_correlation(arr):
+    """Normalize array columns for fast correlation (zero mean, unit variance)"""
+    if arr.ndim == 1:
+        arr = arr[:, np.newaxis]
+    means = np.mean(arr, axis=0)
+    centered = arr - means
+    ssq = np.sum(centered**2, axis=0)
+    mask = ssq >= 1e-14
+    inv_norms = np.zeros_like(ssq)
+    inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
+    normalized = centered * inv_norms
+    if arr.shape[1] == 1:
+        return normalized.ravel(), mask[0]
+    return normalized, mask
+
 # ============================================================================
 # FIELD INITIALIZATION (Multi-channel coupled fields)
 # ============================================================================
@@ -576,6 +591,7 @@ class Agent:
         """
         pattern discovery with multiple correlation types
         Inspired by ARV and IONS_X correlation methods
+        ⚡ Bolt Optimization: Vectorized dot products for O(N) correlation speedup
         """
         if len(self.memory) < CFG.CORR_WINDOW:
             return []
@@ -588,28 +604,8 @@ class Agent:
         arr_env = np.array([o.env_factor for o in window])  # (W,)
 
         # Pre-normalize arrays for faster correlation
-        def normalize(arr):
-            # Returns (normalized_arr, valid_mask)
-            # arr shape: (W, ...) -> normalized shape same
-            if arr.ndim == 1:
-                arr = arr[:, np.newaxis]
-
-            means = np.mean(arr, axis=0)
-            centered = arr - means
-            ssq = np.sum(centered**2, axis=0)
-
-            mask = ssq >= 1e-14
-            inv_norms = np.zeros_like(ssq)
-            inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
-
-            normalized = centered * inv_norms
-
-            if arr.shape[1] == 1: # Flatten if original was 1D
-                return normalized.ravel(), mask[0]
-            return normalized, mask
-
-        norm_now, mask_now = normalize(arr_now)
-        norm_env, mask_env = normalize(arr_env)
+        norm_now, mask_now = normalize_correlation(arr_now)
+        norm_env, mask_env = normalize_correlation(arr_env)
 
         # Lagged arrays for relevant lags
         lag_arrays = {}
@@ -620,39 +616,43 @@ class Agent:
             if lag_val in self.focus_lags:
                 lag_arr = np.array([o.lags[lag_idx] for o in window])
                 lag_arrays[lag_val] = lag_arr
-                norm_lags[lag_val], mask_lags[lag_val] = normalize(lag_arr)
+                norm_lags[lag_val], mask_lags[lag_val] = normalize_correlation(lag_arr)
 
         discoveries = []
         names = [f"ch{c}" for c in range(C)]
 
-        # 1. Cross-channel correlations (coincident)
-        for i in range(C):
-            if not mask_now[i]: continue
-            for j in range(i + 1, C):
-                if not mask_now[j]: continue
-                # r = compute_correlation(arr_now[:, i], arr_now[:, j])
-                r = float(np.dot(norm_now[:, i], norm_now[:, j]))
-                if abs(r) > self.corr_thresh:
-                    discoveries.append({
-                        'edge': (names[i], names[j]),
-                        'correlation': r,
-                        'type': 'coincident',
-                        'lag': 0,
-                        'confidence': abs(r) * 1.2
-                    })
+        # 1. Cross-channel correlations (Vectorized)
+        if C > 1:
+            corr_matrix = np.dot(norm_now.T, norm_now)
+            for i in range(C):
+                if not mask_now[i]: continue
+                for j in range(i + 1, C):
+                    if not mask_now[j]: continue
+                    r = float(corr_matrix[i, j])
+                    if abs(r) > self.corr_thresh:
+                        discoveries.append({
+                            'edge': (names[i], names[j]),
+                            'correlation': r,
+                            'type': 'coincident',
+                            'lag': 0,
+                            'confidence': abs(r) * 1.2
+                        })
 
-        # 2. Lagged correlations (temporal causality)
+        # 2. Lagged correlations (Vectorized)
         for lag_val in lag_arrays.keys():
             n_lag = norm_lags[lag_val]
             m_lag = mask_lags[lag_val]
+
+            # Matrix multiplication: rows of norm_now.T dot cols of n_lag
+            # Result [i, j] is dot(norm_now[:, i], n_lag[:, j])
+            corr_lag = np.dot(norm_now.T, n_lag)
 
             for i in range(C):
                 if not mask_now[i]: continue
 
                 # Autocorrelation
                 if m_lag[i]:
-                    # r = compute_correlation(arr_now[:, i], lag_arr[:, i])
-                    r = float(np.dot(norm_now[:, i], n_lag[:, i]))
+                    r = float(corr_lag[i, i])
                     if abs(r) > self.corr_thresh:
                         discoveries.append({
                             'edge': (names[i], f"{names[i]}@t-{lag_val}"),
@@ -665,8 +665,7 @@ class Agent:
                 # Cross-channel lagged
                 for j in range(C):
                     if i != j and m_lag[j]:
-                        # r = compute_correlation(arr_now[:, i], lag_arr[:, j])
-                        r = float(np.dot(norm_now[:, i], n_lag[:, j]))
+                        r = float(corr_lag[i, j])
                         if abs(r) > self.corr_thresh:
                             discoveries.append({
                                 'edge': (names[i], f"{names[j]}@t-{lag_val}"),
@@ -676,12 +675,16 @@ class Agent:
                                 'confidence': abs(r) * 1.3
                             })
 
-        # 3. Environmental modulation correlations
+        # 3. Environmental modulation correlations (Vectorized)
         if mask_env:
+            # norm_env is 1D array of shape (N,)
+            # norm_now is (N, C)
+            # dot(norm_now.T, norm_env) -> (C,) array
+            corr_env = np.dot(norm_now.T, norm_env)
+
             for i in range(C):
                 if not mask_now[i]: continue
-                # r = compute_correlation(arr_now[:, i], arr_env)
-                r = float(np.dot(norm_now[:, i], norm_env))
+                r = float(corr_env[i])
                 if abs(r) > self.corr_thresh + 0.1:  # Higher threshold for env
                     discoveries.append({
                         'edge': (names[i], 'ENV'),
@@ -2279,6 +2282,21 @@ class Observation:
     lags: Tuple[Tuple[float, ...], ...]
     env_factor: float
 
+def normalize_correlation(arr):
+    """Normalize array columns for fast correlation (zero mean, unit variance)"""
+    if arr.ndim == 1:
+        arr = arr[:, np.newaxis]
+    means = np.mean(arr, axis=0)
+    centered = arr - means
+    ssq = np.sum(centered**2, axis=0)
+    mask = ssq >= 1e-14
+    inv_norms = np.zeros_like(ssq)
+    inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
+    normalized = centered * inv_norms
+    if arr.shape[1] == 1:
+        return normalized.ravel(), mask[0]
+    return normalized, mask
+
 class Agent:
     """Agent with cognitive type and enhanced discovery capabilities"""
     def __init__(self, aid: int, agent_type: str):
@@ -2308,7 +2326,7 @@ class Agent:
     def discover_patterns(self):
         """
         Pattern discovery with multiple correlation types + Tinker insights
-        ⚡ Bolt Optimization: Pre-normalized dot products for O(N) correlation speedup
+        ⚡ Bolt Optimization: Vectorized dot products for O(N) correlation speedup
         """
         if len(self.memory) < CFG.CORR_WINDOW:
             return []
@@ -2320,22 +2338,8 @@ class Agent:
         arr_env = np.array([o.env_factor for o in window])
 
         # Pre-normalize arrays for faster correlation
-        def normalize(arr):
-            if arr.ndim == 1:
-                arr = arr[:, np.newaxis]
-            means = np.mean(arr, axis=0)
-            centered = arr - means
-            ssq = np.sum(centered**2, axis=0)
-            mask = ssq >= 1e-14
-            inv_norms = np.zeros_like(ssq)
-            inv_norms[mask] = 1.0 / np.sqrt(ssq[mask])
-            normalized = centered * inv_norms
-            if arr.shape[1] == 1:
-                return normalized.ravel(), mask[0]
-            return normalized, mask
-
-        norm_now, mask_now = normalize(arr_now)
-        norm_env, mask_env = normalize(arr_env)
+        norm_now, mask_now = normalize_correlation(arr_now)
+        norm_env, mask_env = normalize_correlation(arr_env)
 
         lag_arrays = {}
         norm_lags = {}
@@ -2345,46 +2349,52 @@ class Agent:
             if lag_val in self.focus_lags:
                 lag_arr = np.array([o.lags[lag_idx] for o in window])
                 lag_arrays[lag_val] = lag_arr
-                norm_lags[lag_val], mask_lags[lag_val] = normalize(lag_arr)
+                norm_lags[lag_val], mask_lags[lag_val] = normalize_correlation(lag_arr)
 
         discoveries = []
         names = [f"ch{c}" for c in range(C)]
 
-        # Cross-channel correlations
-        for i in range(C):
-            if not mask_now[i]: continue
-            for j in range(i + 1, C):
-                if not mask_now[j]: continue
-                r = float(np.dot(norm_now[:, i], norm_now[:, j]))
-                if abs(r) > self.corr_thresh:
-                    edge = (names[i], names[j])
+        # Cross-channel correlations (Vectorized)
+        if C > 1:
+            corr_matrix = np.dot(norm_now.T, norm_now)
+            for i in range(C):
+                if not mask_now[i]: continue
+                for j in range(i + 1, C):
+                    if not mask_now[j]: continue
+                    r = float(corr_matrix[i, j])
+                    if abs(r) > self.corr_thresh:
+                        edge = (names[i], names[j])
 
-                    # Get Tinker prediction boost
-                    pred_r = tinker_int.predict_insight(edge)
-                    boost = 0.1 * abs(pred_r - r) if pred_r else 0
+                        # Get Tinker prediction boost
+                        pred_r = tinker_int.predict_insight(edge)
+                        boost = 0.1 * abs(pred_r - r) if pred_r else 0
 
-                    conf = abs(r) * 1.2 + boost
-                    disc = {
-                        'edge': edge,
-                        'correlation': r,
-                        'type': 'coincident',
-                        'lag': 0,
-                        'confidence': conf
-                    }
-                    discoveries.append(disc)
-                    tinker_int.collect_data(disc)
+                        conf = abs(r) * 1.2 + boost
+                        disc = {
+                            'edge': edge,
+                            'correlation': r,
+                            'type': 'coincident',
+                            'lag': 0,
+                            'confidence': conf
+                        }
+                        discoveries.append(disc)
+                        tinker_int.collect_data(disc)
 
-        # Lagged correlations
+        # Lagged correlations (Vectorized)
         for lag_val in lag_arrays.keys():
             n_lag = norm_lags[lag_val]
             m_lag = mask_lags[lag_val]
 
+            # Matrix multiplication: rows of norm_now.T dot cols of n_lag
+            # Result [i, j] is dot(norm_now[:, i], n_lag[:, j])
+            corr_lag = np.dot(norm_now.T, n_lag)
+
             for i in range(C):
                 if not mask_now[i]: continue
 
-                # Autocorrelation
+                # Autocorrelation (diagonal elements)
                 if m_lag[i]:
-                    r = float(np.dot(norm_now[:, i], n_lag[:, i]))
+                    r = float(corr_lag[i, i])
                     if abs(r) > self.corr_thresh:
                         edge = (names[i], f"{names[i]}@t-{lag_val}")
                         pred_r = tinker_int.predict_insight(edge)
@@ -2403,7 +2413,7 @@ class Agent:
                 # Cross-channel lagged
                 for j in range(C):
                     if i != j and m_lag[j]:
-                        r = float(np.dot(norm_now[:, i], n_lag[:, j]))
+                        r = float(corr_lag[i, j])
                         if abs(r) > self.corr_thresh:
                             edge = (names[i], f"{names[j]}@t-{lag_val}")
                             pred_r = tinker_int.predict_insight(edge)
@@ -2419,11 +2429,16 @@ class Agent:
                             discoveries.append(disc)
                             tinker_int.collect_data(disc)
 
-        # Environmental modulation correlations
+        # Environmental modulation correlations (Vectorized)
         if mask_env:
+            # norm_env is 1D array of shape (N,)
+            # norm_now is (N, C)
+            # dot(norm_now.T, norm_env) -> (C,) array
+            corr_env = np.dot(norm_now.T, norm_env)
+
             for i in range(C):
                 if not mask_now[i]: continue
-                r = float(np.dot(norm_now[:, i], norm_env))
+                r = float(corr_env[i])
                 if abs(r) > self.corr_thresh + 0.1:
                     edge = (names[i], 'ENV')
                     pred_r = tinker_int.predict_insight(edge)
@@ -36552,7 +36567,7 @@ class ResonantWorld:
             "history": self.history,
             "final_drr_state": self.drr.get_state()
         }
-        with open(self.config.output_file, \'w\') as f:
+        with open(self.config.output_file, 'w') as f:
             json.dump(results, f, indent=4)
         print(f"Results saved to {self.config.output_file}")
 
@@ -36596,7 +36611,7 @@ class ResonantWorld:
         axs[3].set_ylim(0, 1)
         axs[3].legend()
         axs[3].grid(True)
-        axs[4].plot(self.history["time"], self.history["retrocausal_influence_applied"], label="Retrocausal Influence Applied", color=\'purple\')
+        axs[4].plot(self.history["time"], self.history["retrocausal_influence_applied"], label="Retrocausal Influence Applied", color='purple')
         axs[4].set_xlabel("Time (s)")
         axs[4].set_ylabel("Influence")
         axs[4].set_title("Retrocausal Influence Applied")
@@ -38501,16 +38516,16 @@ Vers3Dynamics: Meaning Machine:
 3) Reality as a simulation layer via Dynamic Resonance Rooting (DRR)
 
 """
-MIT License
-
-Copyright (c) 2025 Christopher Woodyard
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+# MIT License
+#
+# Copyright (c) 2025 Christopher Woodyard
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
 
 
 import os
