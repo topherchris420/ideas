@@ -313,6 +313,7 @@ def optimize_rotor():
 
     def obj(x):
         M, R, rpm, k, N = x
+        N = int(round(N))
         mat = 'Silicon Nitride'
         rho, sigma = materials[mat]['rho'], materials[mat]['sigma_max']
         omega = rpm * 2 * np.pi / 60
@@ -328,7 +329,7 @@ def optimize_rotor():
         (0.3,   1.6),   # Radius m
         (8000,  60000), # RPM
         (0.35,  0.65),  # k
-        (1,     64)     # Number of rotors (integer)
+        (1,     64)     # Number of rotors (optimized continuously, cast to int)
     ]
 
     print("Starting global optimization (this takes ~10–30 seconds)...", flush=True)
@@ -361,7 +362,10 @@ def optimize_rotor():
     print(f"  Moment factor k: {k:.3f}")
     print(f"  Rotors (N)     : {int(N):d}")
     print(f"  Predicted SNR per second : {predicted_snr_per_sec:.2f}")
-    print(f"  → 5σ detection in {25/predicted_snr_per_sec:.2f} seconds!")
+    if predicted_snr_per_sec > 1e-15:
+        print(f"  → 5σ detection in {25/predicted_snr_per_sec:.2f} seconds!")
+    else:
+        print("  → 5σ detection: SNR too low to estimate detection time.")
     print("="*60, flush=True)
 
 # -------------------------- Launch --------------------------
@@ -589,7 +593,7 @@ class Agent:
 
     def discover_patterns(self):
         """
-        pattern discovery with multiple correlation types
+        Pattern discovery with multiple correlation types
         Inspired by ARV and IONS_X correlation methods
         ⚡ Bolt Optimization: Vectorized dot products for O(N) correlation speedup
         """
