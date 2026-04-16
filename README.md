@@ -25,3 +25,9 @@ Created by **Christopher Woodyard** | R.A.I.N. Lab | Vers3Dynamics 🇺🇸
 ---
 
 > “Frequency is not just a measure of vibration — it’s the rhythm of connection.”
+
+---
+
+## ✅ Contributor Quality Check
+
+Before opening a pull request, run all relevant tests and lint checks for any files you touched. This helps keep the project stable, readable, and easier to review.
