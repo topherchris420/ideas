@@ -1,33 +1,75 @@
-# hello_os: Resonant Intelligence Playground 
+# hello_os
 
-> **A living research operating system exploring electromagnetic resonance, field dynamics, and physics**
+`hello_os` is a compact, importable Python package for exploring safe
+gravitomagnetic rotor-array toy models, synthetic detector traces, and
+configuration-driven optimization.
 
-Created by **Christopher Woodyard** | R.A.I.N. Lab | Vers3Dynamics 🇺🇸
+The repository now separates supported code from the original Colab export:
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1rdR0r-m8CSoYTurllo6QXTw0MOueSmvZ)
+- `hello_os/` contains the maintained Python package and CLI.
+- `test_hello_os.py` exercises the real package surface.
+- `legacy/hello_os_colab_export.txt` preserves the raw notebook export as
+  reference material only. It is intentionally not imported or auto-executed.
 
----
+## Install
 
-## 🪶 Mission Statement
+```bash
+python -m pip install -e ".[dev]"
+```
 
-> **Building a foundation for resonant intelligence.**
+The supported package depends on NumPy. The development extra installs pytest
+for the test suite.
 
-**hello_os** is an open-source experiment exploring how frequency, feedback, and computation can model living systems.  
+## Use The CLI
 
+```bash
+python -m hello_os --json
+python -m hello_os --material "Silicon Nitride" --rpm 32000 --rotors 24
+python -m hello_os --optimize --optimizer-samples 5 --json
+python -m hello_os --list-materials
+```
 
-### 🌱 Core Principles
-1. **Open Inquiry:** All findings, code, and data remain open for educational and research use.  
-2. **Interdisciplinary Collaboration:** Bridging physics, AI, music, and consciousness studies.  
-3. **Responsible Exploration:** All experiments remain in simulation space, guided by safety, transparency, and reproducibility.  
-4. **Community Evolution:** Each fork, remix, or improvement adds another layer to the living foundation of resonant intelligence.
+The CLI emits either readable text or JSON for downstream notebooks, dashboards,
+and automation.
 
----
+## Use The API
 
-> “Frequency is not just a measure of vibration — it’s the rhythm of connection.”
+```python
+from hello_os import RotorDesign, estimate_rotor_metrics, simulate_trace
 
----
+design = RotorDesign(
+    material_name="Carbon Composite",
+    mass_kg=250,
+    radius_m=0.7,
+    rpm=28_000,
+    rotor_count=16,
+)
 
-## ✅ Contributor Quality Check
+metrics = estimate_rotor_metrics(design)
+trace = simulate_trace(design, samples=1000, rng=42)
 
-Before opening a pull request, run all relevant tests and lint checks for any files you touched. This helps keep the project stable, readable, and easier to review.
+print(metrics.safety_label)
+print(metrics.snr_per_second)
+print(trace.trace_m_s2.shape)
+```
+
+## Quality Checks
+
+```bash
+python -m py_compile hello_os/*.py
+python -m pytest -q
+```
+
+Before opening a pull request, run the checks above for any files you touched.
+The tests are designed to catch numerical edge cases, shape regressions, and CLI
+output drift.
+
+## Design Notes
+
+- The package is import-safe: importing `hello_os` does not start plots,
+  installers, network calls, GPU setup, or long simulations.
+- Numerical routines validate shapes and finite values before computing.
+- Synthetic noise accepts a seed or `numpy.random.Generator` for reproducible
+  experiments.
+- The optimizer is a bounded deterministic grid search, so it works without
+  SciPy and is predictable in CI.
