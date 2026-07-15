@@ -7,6 +7,8 @@ import json
 from dataclasses import asdict
 from typing import Iterable, Optional
 
+import numpy as np
+
 from .core import (
     RotorDesign,
     available_materials,
@@ -14,6 +16,7 @@ from .core import (
     optimize_rotor,
     simulate_trace,
 )
+from .sweep import SWEEPABLE_PARAMETERS, sensitivity_report, sweep_rotor
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +40,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--duration", type=float, default=20.0, help="trace duration in seconds")
     parser.add_argument("--samples", type=int, default=1000, help="trace sample count")
     parser.add_argument("--seed", type=int, default=42, help="random seed for synthetic trace")
+    parser.add_argument(
+        "--sweep",
+        choices=SWEEPABLE_PARAMETERS,
+        help="sweep one design parameter across a range",
+    )
+    parser.add_argument("--sweep-start", type=float, help="first swept value")
+    parser.add_argument("--sweep-stop", type=float, help="last swept value")
+    parser.add_argument("--sweep-points", type=int, default=15, help="number of sweep points")
+    parser.add_argument(
+        "--sensitivity",
+        action="store_true",
+        help="report how strongly each parameter drives SNR and stress",
+    )
+    parser.add_argument(
+        "--svg",
+        metavar="PATH",
+        help="write a dependency-free SVG chart of the sweep or trace",
+    )
     return parser
 
 
@@ -74,8 +95,59 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         test_velocity_m_s=args.test_velocity,
         material_name=args.material,
     )
+
+    if args.sweep:
+        if args.sweep_start is None or args.sweep_stop is None:
+            parser.error("--sweep requires --sweep-start and --sweep-stop")
+        values = np.linspace(args.sweep_start, args.sweep_stop, args.sweep_points)
+        result = sweep_rotor(args.sweep, values, design=design)
+        best = result.best_safe_index()
+        if args.svg:
+            _write_svg(args.svg, sweep=result)
+
+        payload = result.as_dict()
+        payload["best_safe_index"] = best
+        payload["best_safe_design"] = asdict(result.designs[best]) if best is not None else None
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print(f"hello_os parameter sweep: {args.sweep}")
+            for index in range(len(result.values)):
+                print(
+                    f"  {_format(float(result.values[index]))}: "
+                    f"snr={_format(float(result.snr_per_second[index]))} "
+                    f"stress={_format(float(result.stress_ratio[index]))} "
+                    f"safety={result.safety_labels[index]}"
+                )
+            if best is None:
+                print("no swept design satisfied the stress constraint")
+            else:
+                print(
+                    f"best safe candidate: {args.sweep}="
+                    f"{_format(float(result.values[best]))} "
+                    f"snr={_format(float(result.snr_per_second[best]))}"
+                )
+            if args.svg:
+                print(f"wrote sweep chart to {args.svg}")
+        return 0
+
+    if args.sensitivity:
+        report = sensitivity_report(design)
+        if args.json:
+            print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+        else:
+            print("hello_os sensitivity report (log-log elasticities)")
+            for parameter in report.snr_elasticity:
+                print(
+                    f"  {parameter}: snr={_format(report.snr_elasticity[parameter])} "
+                    f"stress={_format(report.stress_elasticity[parameter])}"
+                )
+        return 0
+
     metrics = estimate_rotor_metrics(design)
     trace = simulate_trace(design, duration_s=args.duration, samples=args.samples, rng=args.seed)
+    if args.svg:
+        _write_svg(args.svg, trace=trace)
 
     payload = {
         "design": asdict(design),
@@ -87,6 +159,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             "trace_std_m_s2": float(trace.trace_m_s2.std()),
         },
     }
+    if args.svg:
+        payload["svg_path"] = args.svg
 
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -97,7 +171,16 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         print(_render_mapping(payload["metrics"]))
         print("\nSynthetic trace")
         print(_render_mapping(payload["trace"]))
+        if args.svg:
+            print(f"\nwrote trace chart to {args.svg}")
     return 0
+
+
+def _write_svg(path: str, trace=None, sweep=None) -> None:
+    from .visualization import render_sweep_svg, render_trace_svg, save_svg
+
+    svg = render_sweep_svg(sweep) if sweep is not None else render_trace_svg(trace)
+    save_svg(svg, path)
 
 
 def _render_mapping(values: dict) -> str:

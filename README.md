@@ -27,10 +27,17 @@ python -m hello_os --json
 python -m hello_os --material "Silicon Nitride" --rpm 32000 --rotors 24
 python -m hello_os --optimize --optimizer-samples 5 --json
 python -m hello_os --list-materials
+python -m hello_os --sweep rpm --sweep-start 8000 --sweep-stop 36000 --sweep-points 8
+python -m hello_os --sensitivity --json
+python -m hello_os --svg trace.svg
 ```
 
 The CLI emits either readable text or JSON for downstream notebooks, dashboards,
-and automation.
+and automation. `--sweep` varies one design parameter across a range and reports
+the best candidate that stays within the stress constraint. `--sensitivity`
+prints log-log elasticities showing how strongly each parameter drives SNR and
+rotor stress. `--svg PATH` writes a dependency-free SVG chart of the sweep (or,
+without `--sweep`, the synthetic trace).
 
 ## Use The API
 
@@ -52,6 +59,27 @@ print(metrics.safety_label)
 print(metrics.snr_per_second)
 print(trace.trace_m_s2.shape)
 ```
+
+### Sweeps, Sensitivity, And Charts
+
+```python
+import numpy as np
+from hello_os import render_sweep_svg, save_svg, sensitivity_report, sweep_rotor
+
+sweep = sweep_rotor("rpm", np.linspace(8000, 36000, 8), design=design)
+best = sweep.best_safe_index()          # highest SNR within the stress budget
+save_svg(render_sweep_svg(sweep), "sweep.svg")
+
+report = sensitivity_report(design)
+print(report.snr_elasticity["detector_distance_m"])   # -3.0: SNR ~ 1/d^3
+```
+
+`sweep_rotor` evaluates metrics along one design axis; `sensitivity_report`
+computes local log-log elasticities, so power-law scalings come out exact
+(SNR scales as `rpm**1`, `radius_m**2`, `detector_distance_m**-3`, ...).
+The SVG renderers in `hello_os.visualization` use only the standard library —
+no matplotlib dependency — and are loaded lazily, so `import hello_os` stays
+lightweight.
 
 ## Quality Checks
 
