@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <radialGradient id="glow" cx="72%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="#5fd08a" stop-opacity="0.16"/>
+      <stop offset="60%" stop-color="#5fd08a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="barfill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5fd08a"/>
+      <stop offset="100%" stop-color="#f1c40f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1920" height="1080" fill="#161826"/>
+  <rect width="1920" height="1080" fill="url(#glow)"/>
+
+  <!-- rotor disc (Opening scene) -->
+  <g transform="translate(1360 430)">
+    <ellipse cx="0" cy="28" rx="168" ry="57" fill="#000" opacity="0.28"/>
+    <ellipse cx="0" cy="0" rx="168" ry="57" fill="#2b2e3f" stroke="#595d6c" stroke-width="1.5"/>
+    <ellipse cx="0" cy="0" rx="121" ry="41" fill="none" stroke="#5fd08a" stroke-width="1" opacity="0.35"/>
+    <g stroke="#5fd08a" stroke-width="2.2" stroke-linecap="round" opacity="0.85">
+      <line x1="0" y1="0" x2="165" y2="0"/>
+      <line x1="0" y1="0" x2="82" y2="44"/>
+      <line x1="0" y1="0" x2="-82" y2="44"/>
+      <line x1="0" y1="0" x2="-165" y2="0"/>
+      <line x1="0" y1="0" x2="-82" y2="-44"/>
+      <line x1="0" y1="0" x2="82" y2="-44"/>
+    </g>
+    <circle cx="0" cy="0" r="27" fill="#5fd08a"/>
+    <circle cx="0" cy="0" r="27" fill="none" stroke="#e9e9ed" stroke-width="0.6" opacity="0.4"/>
+  </g>
+
+  <!-- wordmark + tagline (Opening scene) -->
+  <text x="96" y="470" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="96" font-weight="600" letter-spacing="-2" fill="#e9e9ed">hello_os</text>
+  <rect x="96" y="500" width="340" height="3" rx="1.5" fill="#5fd08a"/>
+  <text x="96" y="572" font-size="40" fill="#b2b6ca">Spin mass fast enough, and it bends spacetime.</text>
+
+  <!-- scene ribbon -->
+  <g transform="translate(96 900)" font-size="20" fill="#9397ab" font-weight="500" letter-spacing="1">
+    <text x="0" y="0" fill="#5fd08a">01 · Opening</text>
+    <text x="260" y="0">02 · The idea</text>
+    <text x="510" y="0">03 · Materials</text>
+    <text x="780" y="0">04 · Safety</text>
+    <text x="1010" y="0">05 · Detector</text>
+    <text x="1280" y="0">06 · Payoff</text>
+  </g>
+
+  <!-- play affordance -->
+  <g transform="translate(960 700)">
+    <circle cx="0" cy="0" r="52" fill="#232532" stroke="#3f424d" stroke-width="1.5"/>
+    <path d="M -16 -24 L 26 0 L -16 24 Z" fill="#e9e9ed"/>
+  </g>
+</svg>
