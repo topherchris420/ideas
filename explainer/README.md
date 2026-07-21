@@ -5,7 +5,10 @@ An animated, six-scene explainer for the `hello_os` toy model, imported from a
 web page: `support.js` bootstraps React, ReactDOM, and Babel from a CDN, then
 mounts the scenes.
 
-![Poster frame of the hello_os explainer](./poster.png)
+![The hello_os animated explainer](./hello_os-explainer.gif)
+
+*(A rendered capture of the full 34.5s animation. Run the source below for the
+interactive, full-resolution version with live tweaks.)*
 
 ## Scenes
 

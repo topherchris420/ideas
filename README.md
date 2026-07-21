@@ -18,11 +18,13 @@ A six-scene animated explainer walks through the idea, the materials, the safety
 model, and the detector trace — all driven by the same numbers the package
 computes.
 
-[![hello_os explainer — click for the six-scene animated walkthrough](explainer/poster.png)](explainer/)
+[![hello_os animated explainer](explainer/hello_os-explainer.gif)](explainer/)
 
 Its data (materials, the safe-tip-speed formula, and the seeded detector trace)
-mirrors `hello_os/core.py`, so the story stays true to the code. See
-[`explainer/`](explainer/) for the source and instructions to run it locally.
+mirrors `hello_os/core.py`, so the story stays true to the code. The clip above
+is a rendered capture of the full 34.5-second animation; see
+[`explainer/`](explainer/) for the interactive source (with live color/material
+tweaks) and instructions to run it locally.
 
 ## Install
 
