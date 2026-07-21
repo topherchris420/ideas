@@ -8,8 +8,21 @@ The repository now separates supported code from the original Colab export:
 
 - `hello_os/` contains the maintained Python package and CLI.
 - `test_hello_os.py` exercises the real package surface.
+- `explainer/` holds an animated explainer video for the model.
 - `legacy/hello_os_colab_export.txt` preserves the raw notebook export as
   reference material only. It is intentionally not imported or auto-executed.
+
+## Explainer Video
+
+A six-scene animated explainer walks through the idea, the materials, the safety
+model, and the detector trace — all driven by the same numbers the package
+computes.
+
+[![hello_os explainer — click for the six-scene animated walkthrough](explainer/poster.png)](explainer/)
+
+Its data (materials, the safe-tip-speed formula, and the seeded detector trace)
+mirrors `hello_os/core.py`, so the story stays true to the code. See
+[`explainer/`](explainer/) for the source and instructions to run it locally.
 
 ## Install
 
