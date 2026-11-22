@@ -1,8 +1,10 @@
 # hello_os
 
-`hello_os` is a compact, importable Python package for exploring safe
-gravitomagnetic rotor-array toy models, synthetic detector traces, and
-configuration-driven optimization.
+**A Python sandbox for rotor-array toy models and synthetic detector traces.**
+
+Use the package or CLI to explore the model under different configurations.
+The explainer follows the same computations and shows what the simulated
+detector would report.
 
 The repository now separates supported code from the original Colab export:
 
@@ -18,7 +20,7 @@ A six-scene animated explainer walks through the idea, the materials, the safety
 model, and the detector trace — all driven by the same numbers the package
 computes.
 
-[![hello_os animated explainer](explainer/hello_os-explainer.gif)](explainer/)
+[![Six-scene explainer showing the toy model and its seeded synthetic detector trace](explainer/hello_os-explainer.gif)](explainer/)
 
 Its data (materials, the safe-tip-speed formula, and the seeded detector trace)
 mirrors `hello_os/core.py`, so the story stays true to the code. The clip above
